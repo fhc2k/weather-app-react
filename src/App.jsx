@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
     LayoutContainer,
     LayoutData,
@@ -6,7 +6,12 @@ import {
     LayoutSearcher,
 } from "./styled-components/Layouts";
 import { Form } from "./styled-components/Forms";
-import { FieldText, FieldInputText } from "./styled-components/FormsFields";
+import {
+    FieldText,
+    FieldInputText,
+    FieldRadioItem,
+    FieldRadioGroup,
+} from "./styled-components/FormsFields";
 import { Button } from "./styled-components/Buttons";
 import { fetchData } from "./services/service-weather";
 import { Spinner } from "./styled-components/Spinner";
@@ -21,9 +26,26 @@ const App = () => {
         data: null,
         isLoading: false,
         error: null,
+        temp: null,
     };
 
-    const [weatherInfo, setWeatherInfo] = useState({ ...initialWeatherInfo });
+    const [weatherInfo, setWeatherInfo] = useState(initialWeatherInfo);
+
+    const convertUnits = (temp, unit) => {
+        return unit === "imperial" ? temp * 1.8 + 32 : temp;
+    };
+
+    useEffect(() => {
+        if (weatherInfo.data) {
+            setWeatherInfo((prev) => ({
+                ...prev,
+                temp: convertUnits(
+                    weatherInfo.data.main.temp,
+                    weatherInfo.inputs.unit
+                ),
+            }));
+        }
+    }, [weatherInfo.inputs.unit, weatherInfo.data]);
 
     const handleChange = ({ target: { name, value } }) => {
         setWeatherInfo((prev) => ({
@@ -37,7 +59,11 @@ const App = () => {
         setWeatherInfo((prev) => ({ ...prev, isLoading: true }));
 
         try {
-            const data = await fetchData(weatherInfo.inputs.location, "metric", weatherInfo.apiKey);
+            const data = await fetchData(
+                weatherInfo.inputs.location,
+                "metric",
+                weatherInfo.apiKey
+            );
             setWeatherInfo((prev) => ({ ...prev, data, error: null }));
         } catch (error) {
             setWeatherInfo((prev) => ({ ...prev, data: null, error }));
@@ -45,7 +71,7 @@ const App = () => {
             setWeatherInfo((prev) => ({
                 ...prev,
                 isLoading: false,
-                inputs: { ...initialWeatherInfo.inputs },
+                inputs: { ...weatherInfo.inputs, location: "" },
             }));
         }
     };
@@ -67,8 +93,16 @@ const App = () => {
         setWeatherInfo((prev) => ({ ...prev, isLoading: true }));
 
         try {
-            const data = await fetchData(position.coords, "metric", weatherInfo.apiKey);
-            setWeatherInfo((prev) => ({ ...prev, data, error: null }));
+            const data = await fetchData(
+                position.coords,
+                "metric",
+                weatherInfo.apiKey
+            );
+            setWeatherInfo((prev) => ({
+                ...prev,
+                data,
+                error: null,
+            }));
         } catch (error) {
             setWeatherInfo((prev) => ({ ...prev, data: null, error }));
         } finally {
@@ -82,26 +116,7 @@ const App = () => {
 
     return (
         <LayoutContainer>
-            {!weatherInfo.apiKey && (
-                <LayoutMain>
-                    <LayoutSearcher>
-                        <Form onSubmit={handleSaveApiKey}>
-                            <FieldText>
-                                <FieldInputText
-                                    type="text"
-                                    value={weatherInfo.inputs.apiKey || ""}
-                                    onChange={handleChange}
-                                    name="apiKey"
-                                    placeholder="Enter your APIKEY"
-                                    required={true}
-                                />
-                            </FieldText>
-                            <Button primary>Save</Button>
-                        </Form>
-                    </LayoutSearcher>
-                </LayoutMain>
-            )}
-            {weatherInfo.apiKey && (
+            {weatherInfo.apiKey ? (
                 <LayoutMain>
                     <LayoutSearcher>
                         <Form onSubmit={handleSubmit}>
@@ -116,27 +131,79 @@ const App = () => {
                                     required={true}
                                 />
                             </FieldText>
-                            <Button primary>Buscar</Button>
+                            <Button primary>Search</Button>
                         </Form>
                         <p>o</p>
                         <Button secondary onClick={handleGeolocation}>
-                            Buscar por mi ubicación
+                            Search by my location
                         </Button>
+                        <FieldRadioGroup>
+                            <FieldRadioItem>
+                                <span>Celsius</span>
+                                <input
+                                    type="radio"
+                                    name="unit"
+                                    value="metric"
+                                    onChange={handleChange}
+                                    checked={
+                                        weatherInfo.inputs.unit === "metric"
+                                    }
+                                />
+                            </FieldRadioItem>
+                            <FieldRadioItem>
+                                <span>Fahrenheit</span>
+                                <input
+                                    type="radio"
+                                    name="unit"
+                                    value="imperial"
+                                    onChange={handleChange}
+                                    checked={
+                                        weatherInfo.inputs.unit === "imperial"
+                                    }
+                                />
+                            </FieldRadioItem>
+                        </FieldRadioGroup>
                     </LayoutSearcher>
                     <LayoutData>
                         {weatherInfo.isLoading && <Spinner />}
                         {weatherInfo.data && (
-                            <WeatherContainer data={weatherInfo.data} />
+                            <WeatherContainer
+                                data={weatherInfo.data}
+                                temp={weatherInfo.temp}
+                                unit={weatherInfo.inputs.unit}
+                            />
                         )}
                         {weatherInfo.error && (
                             <Message error>{weatherInfo.error.message}</Message>
                         )}
                         {!weatherInfo.data && !weatherInfo.error && (
                             <Message info>
-                                No haz hecho ninguna busqueda
+                                You haven't done any searching
                             </Message>
                         )}
                     </LayoutData>
+                </LayoutMain>
+            ) : (
+                <LayoutMain>
+                    <LayoutSearcher>
+                        <Message info>
+                            Your API KEY will be stored in a variable, deleted
+                            when you leave the page or reload the page
+                        </Message>
+                        <Form onSubmit={handleSaveApiKey}>
+                            <FieldText>
+                                <FieldInputText
+                                    type="text"
+                                    value={weatherInfo.inputs.apiKey || ""}
+                                    onChange={handleChange}
+                                    name="apiKey"
+                                    placeholder="Enter your API KEY"
+                                    required={true}
+                                />
+                            </FieldText>
+                            <Button primary>Save</Button>
+                        </Form>
+                    </LayoutSearcher>
                 </LayoutMain>
             )}
         </LayoutContainer>
